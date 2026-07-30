@@ -9,8 +9,8 @@ CSRMatrix::CSRMatrix(int r, int c, int nnz) : nRows(r), nColumns(c)
     row.resize(r + 1);
 }
 
-void CSRMatrix::setValues(const std::vector<double>& newData, const std::vector<int>& newCol,
-                          const std::vector<int>& newRow)
+void CSRMatrix::setValues(std::vector<double> newData, std::vector<int> newCol,
+                          std::vector<int> newRow)
 {
 
     if (newData.size() != data.size() || newCol.size() != data.size())
@@ -19,9 +19,9 @@ void CSRMatrix::setValues(const std::vector<double>& newData, const std::vector<
             "vectores lenght is greater than vector initial alocation size");
     }
 
-    data = newData;
-    col = newCol;
-    row = newRow;
+    data = std::move(newData);
+    col = std::move(newCol);
+    row = std::move(newRow);
 }
 
 void CSRMatrix::multiplyByVector(const CSRMatrix& matrix, const std::vector<double>& x,

@@ -1,97 +1,118 @@
 #include "matrix_market_reader.hpp"
-#include <fstream>
-#include <sstream>
-#include <stdexcept>
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
+#include <stdexcept>
+#include <vector>
 
-static void trim(std::string& s) {
-    s.erase(0, s.find_first_not_of(" \t\r\n"));
-    s.erase(s.find_last_not_of(" \t\r\n") + 1);
-}
+struct Entry
+{
+    int row, col;
+    double val;
+};
 
-CSRMatrix readMatrixMarket(const std::string& filename) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
+CSRMatrix readMatrixMarket(const std::string& filename)
+{
+    FILE* file = std::fopen(filename.c_str(), "r");
+    if (!file)
         throw std::runtime_error("Cannot open file: " + filename);
+
+    char line[4096];
+
+    if (!std::fgets(line, sizeof(line), file))
+    {
+        std::fclose(file);
+        throw std::runtime_error("Empty file");
     }
 
-    std::string line;
-    std::getline(file, line);
-    trim(line);
-
     bool symmetric = false;
-    if (line.find("symmetric") != std::string::npos) {
+    if (std::strstr(line, "symmetric"))
         symmetric = true;
-    } else if (line.find("general") == std::string::npos) {
+    else if (!std::strstr(line, "general"))
+    {
+        std::fclose(file);
         throw std::runtime_error("Unsupported matrix type (only general or symmetric)");
     }
 
-    while (std::getline(file, line)) {
-        trim(line);
-        if (!line.empty() && line[0] != '%') break;
-    }
-
-    int rows, cols, stored_nnz;
+    while (std::fgets(line, sizeof(line), file))
     {
-        std::istringstream iss(line);
-        if (!(iss >> rows >> cols >> stored_nnz)) {
-            throw std::runtime_error("Failed to parse size line");
+        if (line[0] != '%')
+            break;
+    }
+
+    int rows, cols, storedNnz;
+    if (std::sscanf(line, "%d %d %d", &rows, &cols, &storedNnz) != 3)
+    {
+        std::fclose(file);
+        throw std::runtime_error("Failed to parse size line");
+    }
+
+    std::vector<Entry> entries;
+    entries.reserve(symmetric ? 2 * storedNnz : storedNnz);
+
+    int r, c;
+    double v;
+
+    while (std::fgets(line, sizeof(line), file))
+    {
+        if (line[0] == '\n')
+            continue;
+
+        int n = std::sscanf(line, "%d %d %lf", &r, &c, &v);
+
+        if (n >= 2)
+        {
+            if (n == 2)
+            {
+                v = 1.0;
+            }
+
+            r--;
+            c--;
+            entries.push_back({r, c, v});
+            if (symmetric && r != c)
+                entries.push_back({c, r, v});
         }
     }
 
-    std::vector<int> row_counts(rows, 0);
-    std::vector<int> all_rows, all_cols;
-    std::vector<double> all_vals;
-    all_rows.reserve(stored_nnz);
-    all_cols.reserve(stored_nnz);
-    all_vals.reserve(stored_nnz);
+    std::fclose(file);
 
-    while (std::getline(file, line)) {
-        trim(line);
-        if (line.empty()) continue;
+    if (entries.empty())
+        throw std::runtime_error("No entries found");
 
-        int r, c;
-        double v;
-        std::istringstream iss(line);
-        if (!(iss >> r >> c >> v)) continue;
+    std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b)
+              { return a.row < b.row || (a.row == b.row && a.col < b.col); });
 
-        r--; c--;
-        all_rows.push_back(r);
-        all_cols.push_back(c);
-        all_vals.push_back(v);
+    std::vector<Entry> uniqueEntries;
+    uniqueEntries.reserve(entries.size());
 
-        row_counts[r]++;
-        if (symmetric && r != c) {
-            row_counts[c]++;
-        }
+    for (const auto& e : entries)
+    {
+        if (!uniqueEntries.empty() && uniqueEntries.back().row == e.row &&
+            uniqueEntries.back().col == e.col)
+            uniqueEntries.back().val += e.val;
+        else
+            uniqueEntries.push_back(e);
     }
 
-    int actual_nnz = 0;
-    for (int cnt : row_counts) actual_nnz += cnt;
+    int actualNnz = static_cast<int>(uniqueEntries.size());
 
-    CSRMatrix mat(rows, cols, actual_nnz);
+    std::vector<double> data(actualNnz);
+    std::vector<int> colIndices(actualNnz);
+    std::vector<int> rowPtr(rows + 1, 0);
 
-    std::vector<double> data(actual_nnz);
-    std::vector<int> col_indices(actual_nnz);
-    std::vector<int> row_ptr(rows + 1, 0);
-
-    for (int i = 0; i < rows; ++i) row_ptr[i + 1] = row_ptr[i] + row_counts[i];
-
-    std::vector<int> pos = row_ptr;
-    for (size_t k = 0; k < all_rows.size(); ++k) {
-        int r = all_rows[k], c = all_cols[k];
-        double v = all_vals[k];
-        int p = pos[r]++;
-        col_indices[p] = c;
-        data[p] = v;
-
-        if (symmetric && r != c) {
-            int p2 = pos[c]++;
-            col_indices[p2] = r;
-            data[p2] = v;
-        }
+    int currentRow = 0;
+    for (int i = 0; i < actualNnz; ++i)
+    {
+        while (currentRow <= uniqueEntries[i].row)
+            rowPtr[currentRow++] = i;
+        data[i] = uniqueEntries[i].val;
+        colIndices[i] = uniqueEntries[i].col;
     }
+    while (currentRow <= rows)
+        rowPtr[currentRow++] = actualNnz;
 
-    mat.setValues(data, col_indices, row_ptr);
+    CSRMatrix mat(rows, cols, actualNnz);
+    mat.setValues(std::move(data), std::move(colIndices), std::move(rowPtr));
     return mat;
 }
