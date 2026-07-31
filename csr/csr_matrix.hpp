@@ -14,8 +14,7 @@ class CSRMatrix
 
   public:
     CSRMatrix(int l, int c, int nnz);
-    void setValues(std::vector<double> newData, std::vector<int> newCol,
-                   std::vector<int> newLine);
+    void setValues(std::vector<double> newData, std::vector<int> newCol, std::vector<int> newLine);
 
     void multiplyByVector(const std::vector<double>& x, std::vector<double>& y) const;
 
