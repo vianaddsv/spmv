@@ -46,7 +46,7 @@ TEST(CSRMatrixTest, multiplyByVector_with3x3Matrix_returnsCorrectResult) {
     std::vector<double> x = {1.0, 2.0, 3.0};
     std::vector<double> y(3, 0.0);
 
-    mat.multiplyByVector(mat, x, y);
+    mat.multiplyByVector(x, y);
 
     ASSERT_EQ(y.size(), 3);
     EXPECT_DOUBLE_EQ(y[0], 7.0);   // 1*1 + 2*3
@@ -67,7 +67,7 @@ TEST(CSRMatrixTest, readMatrixMarket_loadsBcsstk14_correctDimensionsAndNnz) {
 
     std::vector<double> x(1806, 1.0);
     std::vector<double> y(1806, 0.0);
-    mat.multiplyByVector(mat, x, y);
+    mat.multiplyByVector(x, y);
     EXPECT_EQ(y.size(), 1806);
 
     double sum = 0.0;

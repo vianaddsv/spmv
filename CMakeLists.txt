@@ -16,5 +16,8 @@ add_executable(test_runner test/test_csr_matrix.cpp)
 target_compile_definitions(test_runner PRIVATE PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(test_runner PRIVATE csr GTest::gtest GTest::gtest_main)
 
+add_executable(spmv main.cpp)
+target_link_libraries(spmv PRIVATE csr)
+
 include(GoogleTest)
 gtest_discover_tests(test_runner)
