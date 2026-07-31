@@ -1,3 +1,4 @@
 build/
+build-noopt/
 matrices/
 !matrices/.gitkeep
