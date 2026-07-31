@@ -17,8 +17,7 @@ class CSRMatrix
     void setValues(std::vector<double> newData, std::vector<int> newCol,
                    std::vector<int> newLine);
 
-    void multiplyByVector(const CSRMatrix& matrix, const std::vector<double>& x,
-                          std::vector<double>& y);
+    void multiplyByVector(const std::vector<double>& x, std::vector<double>& y) const;
 
     const std::vector<double>& getData() const { return data; };
     const std::vector<int>& getCol() const { return col; };

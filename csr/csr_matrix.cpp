@@ -24,15 +24,9 @@ void CSRMatrix::setValues(std::vector<double> newData, std::vector<int> newCol,
     row = std::move(newRow);
 }
 
-void CSRMatrix::multiplyByVector(const CSRMatrix& matrix, const std::vector<double>& x,
-                                 std::vector<double>& y)
+void CSRMatrix::multiplyByVector(const std::vector<double>& x, std::vector<double>& y) const
 {
-    const auto& val = matrix.getData();
-    const auto& col = matrix.getCol();
-    const auto& row = matrix.getRow();
-    int totalOfRows = matrix.getNumberOfRows();
-
-    for (int i = 0; i < totalOfRows; ++i)
+    for (int i = 0; i < nRows; ++i)
     {
         double sum = 0.0;
         int init = row[i];
@@ -40,7 +34,7 @@ void CSRMatrix::multiplyByVector(const CSRMatrix& matrix, const std::vector<doub
 
         for (int j = init; j < end; ++j)
         {
-            sum += val[j] * x[col[j]];
+            sum += data[j] * x[col[j]];
         }
         y[i] = sum;
     }
