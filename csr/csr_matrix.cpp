@@ -1,6 +1,9 @@
 #include "csr_matrix.hpp"
-#include <omp.h>
 #include <stdexcept>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 CSRMatrix::CSRMatrix(int r, int c, int nnz) : nRows(r), nColumns(c), nThreads(0)
 {
@@ -33,6 +36,7 @@ void CSRMatrix::multiplyByVector(const std::vector<double>& x, std::vector<doubl
     }
 }
 
+#ifdef _OPENMP
 void CSRMatrix::multiplyByVectorOmp(const std::vector<double>& x, std::vector<double>& y,
                                     int threads) const
 {
@@ -52,6 +56,7 @@ void CSRMatrix::multiplyByVectorOmpGuided(const std::vector<double>& x, std::vec
         y[i] = computeRowSum(x, i);
     }
 }
+#endif // _OPENMP
 
 void CSRMatrix::prepareNNZPartitioning(int threads)
 {
@@ -80,6 +85,7 @@ void CSRMatrix::prepareNNZPartitioning(int threads)
     threadRowStart[nThreads] = nRows;
 }
 
+#ifdef _OPENMP
 void CSRMatrix::multiplyByVectorOmpBalanced(const std::vector<double>& x, std::vector<double>& y) const
 {
 #pragma omp parallel num_threads(nThreads)
@@ -95,3 +101,4 @@ void CSRMatrix::multiplyByVectorOmpBalanced(const std::vector<double>& x, std::v
         }
     }
 }
+#endif // _OPENMP

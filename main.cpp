@@ -41,16 +41,10 @@ int main(int argc, char* argv[])
         std::vector<double> x(cols, 1.0);
         std::vector<double> y(rows, 0.0);
 
-        // ==========================================
-        // 1. FASE DE AQUECIMENTO (WARM-UP)
-        // ==========================================
         const int warmupIters = 10;
         for (int i = 0; i < warmupIters; ++i)
             mat.multiplyByVector(x, y);
 
-        // ==========================================
-        // 2. FASE DE BENCHMARK (MEDIÇÃO REAL)
-        // ==========================================
         const int benchIters = 100;
 
         auto start = std::chrono::high_resolution_clock::now();
@@ -60,28 +54,18 @@ int main(int argc, char* argv[])
 
         auto end = std::chrono::high_resolution_clock::now();
 
-        // ==========================================
-        // 3. MATEMÁTICA DO ROOFLINE MODEL
-        // ==========================================
         double totalElapsed = std::chrono::duration<double>(end - start).count();
         double avgTimeSec = totalElapsed / benchIters;
 
-        // FLOPs: 1 multiplicação + 1 soma (2 ops) por elemento não-zero
         double flopsPerSpmv = 2.0 * nnz;
         double gflopsPerSec = (flopsPerSpmv / avgTimeSec) / 1e9;
 
-        // Tráfego de memória (compulsório em bytes):
-        // rowPtr (ints) + colIndices (ints) + values (doubles) + x (doubles) + y (doubles)
         double bytesPerSpmv =
             ((rows + 1) * 4.0) + (nnz * 4.0) + (nnz * 8.0) + (cols * 8.0) + (rows * 8.0);
         double gbPerSec = (bytesPerSpmv / avgTimeSec) / 1e9;
 
-        // Intensidade aritmética (FLOPs / Byte)
         double arithmeticIntensity = flopsPerSpmv / bytesPerSpmv;
 
-        // ==========================================
-        // 4. SAÍDA FORMATADA PARA O RELATÓRIO
-        // ==========================================
         std::cout << std::fixed << std::setprecision(6);
         std::cout << "--------------------------------------\n";
         std::cout << "Avg Time per SpMV : " << avgTimeSec << " s\n";
@@ -90,7 +74,6 @@ int main(int argc, char* argv[])
         std::cout << "Arith. Intens.(X) : " << arithmeticIntensity << " FLOPs/Byte\n";
         std::cout << "--------------------------------------\n";
 
-        // Validação (evita que o compilador otimize o laço sem usar 'y')
         double sum = 0.0;
         for (double v : y)
             sum += v;
