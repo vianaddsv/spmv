@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstring>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
@@ -11,17 +12,25 @@
 int main(int argc, char* argv[])
 {
     std::string filePath;
+    std::string csvPath = "resultado_consolidado_seq.csv";
+    std::string buildLabel = "unknown";
 
     for (int i = 1; i < argc; ++i)
     {
         if ((std::strcmp(argv[i], "-f") == 0 || std::strcmp(argv[i], "--file") == 0) &&
             i + 1 < argc)
             filePath = argv[++i];
+        else if ((std::strcmp(argv[i], "-o") == 0 || std::strcmp(argv[i], "--output") == 0) &&
+                 i + 1 < argc)
+            csvPath = argv[++i];
+        else if ((std::strcmp(argv[i], "-l") == 0 || std::strcmp(argv[i], "--label") == 0) &&
+                 i + 1 < argc)
+            buildLabel = argv[++i];
     }
 
     if (filePath.empty())
     {
-        std::cerr << "Usage: " << argv[0] << " -f <matrix.mtx>\n";
+        std::cerr << "Usage: " << argv[0] << " -f <matrix.mtx> [-o <csv_path>] [-l <label>]\n";
         return 1;
     }
 
@@ -78,6 +87,25 @@ int main(int argc, char* argv[])
         for (double v : y)
             sum += v;
         std::cout << "Sum(y) validation : " << sum << "\n";
+
+        std::string matrixName = filePath;
+        size_t lastSlash = matrixName.find_last_of("/\\");
+        if (lastSlash != std::string::npos)
+            matrixName = matrixName.substr(lastSlash + 1);
+
+        std::ofstream csvFile(csvPath, std::ios::app);
+
+        csvFile.seekp(0, std::ios::end);
+        if (csvFile.tellp() == 0)
+        {
+            csvFile << "Matriz,Build,Rows,Cols,NNZ,AvgTimeSec,Bandwidth_GBps,GFLOPs,"
+                       "ArithIntensity\n";
+        }
+
+        csvFile << matrixName << "," << buildLabel << "," << rows << "," << cols << "," << nnz
+                << "," << avgTimeSec << "," << gbPerSec << "," << gflopsPerSec << ","
+                << arithmeticIntensity << "\n";
+        csvFile.close();
     }
     catch (const std::exception& e)
     {

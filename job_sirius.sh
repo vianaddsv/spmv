@@ -24,21 +24,24 @@ echo "----------------------------------------"
 
 for bin in "${BINARIOS[@]}"; do
 
-    # A sua lógica brilhante para o nome do binário
     NOME_BIN="$(basename $(dirname $bin))_$(basename $bin)"
 
     for mat in "${MATRIZES[@]}"; do
         
         NOME_MAT=$(basename $mat .mtx)
         
-        # Alterado para a pasta do cluster
         mkdir -p metrics/sirius
         ARQUIVO_SAIDA="metrics/sirius/resultado_sirius_${NOME_BIN}_${NOME_MAT}.md"
         
+        if [[ "${bin##*/}" == spmv ]]; then
+            ARQUIVO_CSV="metrics/sirius/resultado_consolidado_seq.csv"
+        else
+            ARQUIVO_CSV="metrics/sirius/resultado_consolidado.csv"
+        fi
+        
         echo "Executando: $NOME_BIN com a matriz $NOME_MAT"
         
-        # O OpenMP vai usar os 24 núcleos físicos/lógicos do nó Sirius
-        $bin -f $mat > $ARQUIVO_SAIDA
+        $bin -f $mat -o $ARQUIVO_CSV -l $NOME_BIN > $ARQUIVO_SAIDA
         
     done
 done

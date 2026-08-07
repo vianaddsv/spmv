@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstring>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
@@ -13,17 +14,25 @@
 int main(int argc, char* argv[])
 {
     std::string filePath;
+    std::string csvPath = "resultado_consolidado.csv";
+    std::string buildLabel = "unknown";
 
     for (int i = 1; i < argc; ++i)
     {
         if ((std::strcmp(argv[i], "-f") == 0 || std::strcmp(argv[i], "--file") == 0) &&
             i + 1 < argc)
             filePath = argv[++i];
+        else if ((std::strcmp(argv[i], "-o") == 0 || std::strcmp(argv[i], "--output") == 0) &&
+                 i + 1 < argc)
+            csvPath = argv[++i];
+        else if ((std::strcmp(argv[i], "-l") == 0 || std::strcmp(argv[i], "--label") == 0) &&
+                 i + 1 < argc)
+            buildLabel = argv[++i];
     }
 
     if (filePath.empty())
     {
-        std::cerr << "Usage: " << argv[0] << " -f <matrix.mtx>\n";
+        std::cerr << "Usage: " << argv[0] << " -f <matrix.mtx> [-o <csv_path>] [-l <label>]\n";
         return 1;
     }
 
@@ -70,6 +79,20 @@ int main(int argc, char* argv[])
         const int warmupIters = 5;
         std::vector<int> threadCounts = {1, 2, 4, 8, 12, 16, 20, 24};
 
+        std::string matrixName = filePath;
+        size_t lastSlash = matrixName.find_last_of("/\\");
+        if (lastSlash != std::string::npos)
+            matrixName = matrixName.substr(lastSlash + 1);
+
+        std::ofstream csvFile(csvPath, std::ios::app);
+
+        csvFile.seekp(0, std::ios::end);
+        if (csvFile.tellp() == 0)
+        {
+            csvFile << "Matriz,Build,Threads,Static_Time,Static_GBps,Guided_Time,Guided_GBps,"
+                       "Balanced_Time,Balanced_GBps,Checksum_OK\n";
+        }
+
         std::cout << " Threads | Static (GB/s) | Guided (GB/s) | Balanced (GB/s) | Checksum OK?\n";
         std::cout
             << "---------------------------------------------------------------------------\n";
@@ -108,14 +131,21 @@ int main(int argc, char* argv[])
             double sumTest = 0.0;
             for (double v : yBalanced)
                 sumTest += v;
-            std::string status = (std::abs(sumRef - sumTest) < 1e-5) ? "YES" : "NO!";
+            std::string status = (std::abs(sumRef - sumTest) < 1e-5) ? "YES" : "NO";
 
-            std::cout << std::setw(8) << t << " | " << std::setw(13) << gbpsStatic << " | "
-                      << std::setw(13) << gbpsGuided << " | " << std::setw(15) << gbpsBalanced
-                      << " | " << std::setw(10) << status << "\n";
+            std::cout << std::setw(8) << t << " | " << std::setw(13) << std::fixed
+                      << std::setprecision(2) << gbpsStatic << " | " << std::setw(13) << gbpsGuided
+                      << " | " << std::setw(15) << gbpsBalanced << " | " << std::setw(10) << status
+                      << "\n";
+
+            csvFile << matrixName << "," << buildLabel << "," << t << "," << timeStatic << ","
+                    << gbpsStatic << "," << timeGuided << "," << gbpsGuided << ","
+                    << timeBalanced << "," << gbpsBalanced << "," << status << "\n";
         }
         std::cout
             << "---------------------------------------------------------------------------\n";
+
+        csvFile.close();
     }
     catch (const std::exception& e)
     {

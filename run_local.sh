@@ -28,9 +28,15 @@ for bin in "${BINARIOS[@]}"; do
         mkdir -p metrics/desktop
         ARQUIVO_SAIDA="metrics/desktop/resultado_local_${NOME_BIN}_${NOME_MAT}.md"
         
+        if [[ "${bin##*/}" == spmv ]]; then
+            ARQUIVO_CSV="metrics/desktop/resultado_consolidado_seq.csv"
+        else
+            ARQUIVO_CSV="metrics/desktop/resultado_consolidado.csv"
+        fi
+        
         echo "Executando: $NOME_BIN com a matriz $NOME_MAT"
         
-        $bin -f $mat > $ARQUIVO_SAIDA
+        $bin -f $mat -o $ARQUIVO_CSV -l $NOME_BIN > $ARQUIVO_SAIDA
         
     done
 done
