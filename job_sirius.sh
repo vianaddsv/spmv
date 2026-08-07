@@ -3,6 +3,7 @@
 #$ -V
 #$ -cwd
 #$ -q all.q@sirius.eic.cefet-rj.br
+#$ -pe openmp 24
 #$ -o job_sirius.log
 #$ -e job_sirius_erro.log
 
