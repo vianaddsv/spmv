@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstring>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
@@ -11,17 +12,25 @@
 int main(int argc, char* argv[])
 {
     std::string filePath;
+    std::string csvPath = "resultado_consolidado_seq.csv";
+    std::string buildLabel = "unknown";
 
     for (int i = 1; i < argc; ++i)
     {
         if ((std::strcmp(argv[i], "-f") == 0 || std::strcmp(argv[i], "--file") == 0) &&
             i + 1 < argc)
             filePath = argv[++i];
+        else if ((std::strcmp(argv[i], "-o") == 0 || std::strcmp(argv[i], "--output") == 0) &&
+                 i + 1 < argc)
+            csvPath = argv[++i];
+        else if ((std::strcmp(argv[i], "-l") == 0 || std::strcmp(argv[i], "--label") == 0) &&
+                 i + 1 < argc)
+            buildLabel = argv[++i];
     }
 
     if (filePath.empty())
     {
-        std::cerr << "Usage: " << argv[0] << " -f <matrix.mtx>\n";
+        std::cerr << "Usage: " << argv[0] << " -f <matrix.mtx> [-o <csv_path>] [-l <label>]\n";
         return 1;
     }
 
@@ -41,16 +50,10 @@ int main(int argc, char* argv[])
         std::vector<double> x(cols, 1.0);
         std::vector<double> y(rows, 0.0);
 
-        // ==========================================
-        // 1. FASE DE AQUECIMENTO (WARM-UP)
-        // ==========================================
         const int warmupIters = 10;
         for (int i = 0; i < warmupIters; ++i)
             mat.multiplyByVector(x, y);
 
-        // ==========================================
-        // 2. FASE DE BENCHMARK (MEDIÇÃO REAL)
-        // ==========================================
         const int benchIters = 100;
 
         auto start = std::chrono::high_resolution_clock::now();
@@ -60,28 +63,18 @@ int main(int argc, char* argv[])
 
         auto end = std::chrono::high_resolution_clock::now();
 
-        // ==========================================
-        // 3. MATEMÁTICA DO ROOFLINE MODEL
-        // ==========================================
         double totalElapsed = std::chrono::duration<double>(end - start).count();
         double avgTimeSec = totalElapsed / benchIters;
 
-        // FLOPs: 1 multiplicação + 1 soma (2 ops) por elemento não-zero
         double flopsPerSpmv = 2.0 * nnz;
         double gflopsPerSec = (flopsPerSpmv / avgTimeSec) / 1e9;
 
-        // Tráfego de memória (compulsório em bytes):
-        // rowPtr (ints) + colIndices (ints) + values (doubles) + x (doubles) + y (doubles)
         double bytesPerSpmv =
             ((rows + 1) * 4.0) + (nnz * 4.0) + (nnz * 8.0) + (cols * 8.0) + (rows * 8.0);
         double gbPerSec = (bytesPerSpmv / avgTimeSec) / 1e9;
 
-        // Intensidade aritmética (FLOPs / Byte)
         double arithmeticIntensity = flopsPerSpmv / bytesPerSpmv;
 
-        // ==========================================
-        // 4. SAÍDA FORMATADA PARA O RELATÓRIO
-        // ==========================================
         std::cout << std::fixed << std::setprecision(6);
         std::cout << "--------------------------------------\n";
         std::cout << "Avg Time per SpMV : " << avgTimeSec << " s\n";
@@ -90,11 +83,29 @@ int main(int argc, char* argv[])
         std::cout << "Arith. Intens.(X) : " << arithmeticIntensity << " FLOPs/Byte\n";
         std::cout << "--------------------------------------\n";
 
-        // Validação (evita que o compilador otimize o laço sem usar 'y')
         double sum = 0.0;
         for (double v : y)
             sum += v;
         std::cout << "Sum(y) validation : " << sum << "\n";
+
+        std::string matrixName = filePath;
+        size_t lastSlash = matrixName.find_last_of("/\\");
+        if (lastSlash != std::string::npos)
+            matrixName = matrixName.substr(lastSlash + 1);
+
+        std::ofstream csvFile(csvPath, std::ios::app);
+
+        csvFile.seekp(0, std::ios::end);
+        if (csvFile.tellp() == 0)
+        {
+            csvFile << "Matriz,Build,Rows,Cols,NNZ,AvgTimeSec,Bandwidth_GBps,GFLOPs,"
+                       "ArithIntensity\n";
+        }
+
+        csvFile << matrixName << "," << buildLabel << "," << rows << "," << cols << "," << nnz
+                << "," << avgTimeSec << "," << gbPerSec << "," << gflopsPerSec << ","
+                << arithmeticIntensity << "\n";
+        csvFile.close();
     }
     catch (const std::exception& e)
     {

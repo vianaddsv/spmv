@@ -1,7 +1,11 @@
 #include "csr_matrix.hpp"
 #include <stdexcept>
 
-CSRMatrix::CSRMatrix(int r, int c, int nnz) : nRows(r), nColumns(c)
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+CSRMatrix::CSRMatrix(int r, int c, int nnz) : nRows(r), nColumns(c), nThreads(0)
 {
 
     data.resize(nnz);
@@ -28,14 +32,73 @@ void CSRMatrix::multiplyByVector(const std::vector<double>& x, std::vector<doubl
 {
     for (int i = 0; i < nRows; ++i)
     {
-        double sum = 0.0;
-        int init = row[i];
-        int end = row[i + 1];
-
-        for (int j = init; j < end; ++j)
-        {
-            sum += data[j] * x[col[j]];
-        }
-        y[i] = sum;
+        y[i] = computeRowSum(x, i);
     }
 }
+
+#ifdef _OPENMP
+void CSRMatrix::multiplyByVectorOmp(const std::vector<double>& x, std::vector<double>& y,
+                                    int threads) const
+{
+#pragma omp parallel for num_threads(threads) schedule(static)
+    for (int i = 0; i < nRows; ++i)
+    {
+        y[i] = computeRowSum(x, i);
+    }
+}
+
+void CSRMatrix::multiplyByVectorOmpGuided(const std::vector<double>& x, std::vector<double>& y,
+                                          int threads) const
+{
+#pragma omp parallel for num_threads(threads) schedule(guided)
+    for (int i = 0; i < nRows; ++i)
+    {
+        y[i] = computeRowSum(x, i);
+    }
+}
+#endif // _OPENMP
+
+void CSRMatrix::prepareNNZPartitioning(int threads)
+{
+    nThreads = threads;
+    threadRowStart.resize(nThreads + 1, 0);
+
+    int totalNnz = data.size();
+    int targetNnzPerThread = totalNnz / nThreads;
+
+    threadRowStart[0] = 0;
+
+    int currentThread = 1;
+    int accumulatedNnz = 0;
+
+    for (int i = 0; i < nRows; ++i)
+    {
+        int rowNnz = row[i + 1] - row[i];
+        accumulatedNnz += rowNnz;
+
+        if (accumulatedNnz >= currentThread * targetNnzPerThread && currentThread < nThreads)
+        {
+            threadRowStart[currentThread] = i + 1;
+            currentThread++;
+        }
+    }
+    threadRowStart[nThreads] = nRows;
+}
+
+#ifdef _OPENMP
+void CSRMatrix::multiplyByVectorOmpBalanced(const std::vector<double>& x, std::vector<double>& y) const
+{
+#pragma omp parallel num_threads(nThreads)
+    {
+        int tid = omp_get_thread_num();
+
+        int initRow = threadRowStart[tid];
+        int endRow = threadRowStart[tid + 1];
+
+        for (int i = initRow; i < endRow; ++i)
+        {
+            y[i] = computeRowSum(x, i);
+        }
+    }
+}
+#endif // _OPENMP
