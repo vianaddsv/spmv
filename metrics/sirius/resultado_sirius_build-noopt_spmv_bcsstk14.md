@@ -3,9 +3,9 @@ Rows: 1806
 Cols: 1806
 Nonzeros (NNZ): 63454
 --------------------------------------
-Avg Time per SpMV : 0.000205 s
-Bandwidth         : 3.882169 GB/s
-Performance (Y)   : 0.617723 GFLOP/s
+Avg Time per SpMV : 0.000203 s
+Bandwidth         : 3.923498 GB/s
+Performance (Y)   : 0.624299 GFLOP/s
 Arith. Intens.(X) : 0.159118 FLOPs/Byte
 --------------------------------------
 Sum(y) validation : 1651045840980.596191
