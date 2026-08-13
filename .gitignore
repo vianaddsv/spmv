@@ -1,5 +1,6 @@
 build/
 build-noopt/
 build-test/
+build-gpu/
 matrices/
 !matrices/.gitkeep

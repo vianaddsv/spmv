@@ -38,6 +38,7 @@ class CSRMatrix
                                    int threads) const;
     void prepareNNZPartitioning(int threads);
     void multiplyByVectorOmpBalanced(const std::vector<double>& x, std::vector<double>& y) const;
+    void multiplyByVectorOmpTarget(const std::vector<double>& x, std::vector<double>& y) const;
 
     const std::vector<double>& getData() const { return data; };
     const std::vector<int>& getCol() const { return col; };
