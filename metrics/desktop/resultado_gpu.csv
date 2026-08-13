@@ -1,0 +1,4 @@
+Matriz,Build,Target_Time,Target_GBps,Checksum_OK
+bcsstk14.mtx,build-gpu_spmv_parallel,0.000248534,3.20911,YES
+bcsstk18.mtx,build-gpu_spmv_parallel,0.000651173,3.11445,YES
+G3_circuit.mtx,build-gpu_spmv_parallel,0.0238904,5.17527,YES

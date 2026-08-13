@@ -13,9 +13,10 @@
 
 int main(int argc, char* argv[])
 {
-    std::string filePath;
+std::string filePath;
     std::string csvPath = "resultado_consolidado.csv";
     std::string buildLabel = "unknown";
+    bool gpuOnly = false;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -28,11 +29,14 @@ int main(int argc, char* argv[])
         else if ((std::strcmp(argv[i], "-l") == 0 || std::strcmp(argv[i], "--label") == 0) &&
                  i + 1 < argc)
             buildLabel = argv[++i];
+        else if (std::strcmp(argv[i], "--gpu-only") == 0)
+            gpuOnly = true;
     }
 
     if (filePath.empty())
     {
-        std::cerr << "Usage: " << argv[0] << " -f <matrix.mtx> [-o <csv_path>] [-l <label>]\n";
+        std::cerr << "Usage: " << argv[0]
+                  << " -f <matrix.mtx> [-o <csv_path>] [-l <label>] [--gpu-only]\n";
         return 1;
     }
 
@@ -75,14 +79,16 @@ int main(int argc, char* argv[])
         for (double v : yRef)
             sumRef += v;
 
-        const int benchIters = 100;
-        const int warmupIters = 5;
-        std::vector<int> threadCounts = {1, 2, 4, 8, 12, 16, 20, 24};
-
         std::string matrixName = filePath;
         size_t lastSlash = matrixName.find_last_of("/\\");
         if (lastSlash != std::string::npos)
             matrixName = matrixName.substr(lastSlash + 1);
+
+        if (!gpuOnly)
+        {
+        const int benchIters = 100;
+        const int warmupIters = 5;
+        std::vector<int> threadCounts = {1, 2, 4, 8, 12, 16, 20, 24};
 
         std::ofstream csvFile(csvPath, std::ios::app);
 
@@ -134,9 +140,9 @@ int main(int argc, char* argv[])
             std::string status = (std::abs(sumRef - sumTest) < 1e-5) ? "YES" : "NO";
 
             std::cout << std::setw(8) << t << " | " << std::setw(13) << std::fixed
-                      << std::setprecision(2) << gbpsStatic << " | " << std::setw(13) << gbpsGuided
-                      << " | " << std::setw(15) << gbpsBalanced << " | " << std::setw(10) << status
-                      << "\n";
+                      << std::setprecision(2) << gbpsStatic << " GB/s | " << std::setw(13)
+                      << gbpsGuided << " GB/s | " << std::setw(15) << gbpsBalanced
+                      << " GB/s | " << std::setw(10) << status << "\n";
 
             csvFile << matrixName << "," << buildLabel << "," << t << "," << timeStatic << ","
                     << gbpsStatic << "," << timeGuided << "," << gbpsGuided << ","
@@ -146,6 +152,42 @@ int main(int argc, char* argv[])
             << "---------------------------------------------------------------------------\n";
 
         csvFile.close();
+        }
+
+        if (gpuOnly)
+        {
+            std::vector<double> yGpu(rows, 0.0);
+
+            std::ofstream gpuCsv(csvPath, std::ios::app);
+            gpuCsv.seekp(0, std::ios::end);
+            if (gpuCsv.tellp() == 0)
+                gpuCsv << "Matriz,Build,Target_Time,Target_GBps,Checksum_OK\n";
+
+            int ndev = omp_get_num_devices();
+            std::cout << "\nOffload (GPU) benchmark - devices: " << ndev << "\n";
+
+            const int gpuBenchIters = 1000;
+            for (int i = 0; i < 10; ++i)
+                mat.multiplyByVectorOmpTarget(x, yGpu);
+
+            double startGpu = omp_get_wtime();
+            for (int i = 0; i < gpuBenchIters; ++i)
+                mat.multiplyByVectorOmpTarget(x, yGpu);
+            double timeGpu = (omp_get_wtime() - startGpu) / gpuBenchIters;
+            double gbpsGpu = (bytesPerSpmv / timeGpu) / 1e9;
+
+            double sumGpu = 0.0;
+            for (double v : yGpu)
+                sumGpu += v;
+            std::string statusGpu = (std::abs(sumRef - sumGpu) < 1e-5) ? "YES" : "NO";
+
+            std::cout << "Target offload: " << std::fixed << std::setprecision(2) << gbpsGpu
+                      << " GB/s | checksum " << statusGpu << "\n";
+
+            gpuCsv << matrixName << "," << buildLabel << "," << timeGpu << "," << gbpsGpu << ","
+                   << statusGpu << "\n";
+            gpuCsv.close();
+        }
     }
     catch (const std::exception& e)
     {

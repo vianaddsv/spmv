@@ -86,7 +86,8 @@ void CSRMatrix::prepareNNZPartitioning(int threads)
 }
 
 #ifdef _OPENMP
-void CSRMatrix::multiplyByVectorOmpBalanced(const std::vector<double>& x, std::vector<double>& y) const
+void CSRMatrix::multiplyByVectorOmpBalanced(const std::vector<double>& x,
+                                            std::vector<double>& y) const
 {
 #pragma omp parallel num_threads(nThreads)
     {
@@ -99,6 +100,37 @@ void CSRMatrix::multiplyByVectorOmpBalanced(const std::vector<double>& x, std::v
         {
             y[i] = computeRowSum(x, i);
         }
+    }
+}
+
+void CSRMatrix::multiplyByVectorOmpTarget(const std::vector<double>& x,
+                                          std::vector<double>& y) const
+{
+    const double* ptrData = data.data();
+    const int* ptrCol = col.data();
+    const int* ptrRow = row.data();
+    const double* ptrX = x.data();
+    double* ptrY = y.data();
+
+    int nnz = data.size();
+    int rows = nRows;
+    int cols = nColumns;
+
+#pragma omp target teams distribute parallel for map(to : ptrData[0 : nnz], ptrCol[0 : nnz],       \
+                                                         ptrRow[0 : rows + 1], ptrX[0 : cols])     \
+    map(from : ptrY[0 : rows])
+    for (int i = 0; i < rows; ++i)
+    {
+        double sum = 0.0;
+        int init = ptrRow[i];
+        int end = ptrRow[i + 1];
+
+        for (int j = init; j < end; ++j)
+        {
+            sum += ptrData[j] * ptrX[ptrCol[j]];
+        }
+
+        ptrY[i] = sum;
     }
 }
 #endif // _OPENMP

@@ -10,6 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(OpenMP REQUIRED)
 
 option(BUILD_TESTS "Build unit tests (requires GTest)" OFF)
+option(GPU_OFFLOAD "Enable OpenMP target offload (requires CUDA toolchain + libomptarget)" OFF)
 
 # ---------------------------------------------------------
 # 1. Biblioteca Sequencial (Pura)
@@ -24,11 +25,33 @@ add_library(csr_omp csr/csr_matrix.cpp csr/matrix_market_reader.cpp)
 target_include_directories(csr_omp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/csr)
 target_link_libraries(csr_omp PUBLIC OpenMP::OpenMP_CXX)
 
+if(GPU_OFFLOAD)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "GPU_OFFLOAD requires clang++ (configure with -DCMAKE_CXX_COMPILER=clang++)")
+    endif()
+    set(LIBOMPTARGET_BC "/home/vianaddsv/dev/toolchain-offload/device-objs/libomptarget-nvptx.bc"
+        CACHE FILEPATH "Path to the NVPTX device runtime bitcode")
+    set(LIBOMPTARGET_LIBDIR "/home/vianaddsv/dev/toolchain-offload/stage/lib"
+        CACHE PATH "Directory containing libomptarget.so")
+    target_compile_options(csr_omp PUBLIC
+        -fopenmp-targets=nvptx64-nvidia-cuda --offload-arch=sm_89
+        "--libomptarget-nvptx-bc-path=${LIBOMPTARGET_BC}")
+    target_link_options(csr_omp PUBLIC
+        -fopenmp-targets=nvptx64-nvidia-cuda --offload-arch=sm_89
+        "--libomptarget-nvptx-bc-path=${LIBOMPTARGET_BC}"
+        "-L${LIBOMPTARGET_LIBDIR}" "-Wl,-rpath,${LIBOMPTARGET_LIBDIR}")
+endif()
+
 add_executable(spmv main.cpp)
 target_link_libraries(spmv PRIVATE csr_seq)
 
 add_executable(spmv_parallel main_parallel.cpp)
 target_link_libraries(spmv_parallel PRIVATE csr_omp)
+
+# GPU_OFFLOAD: sem isso o clang não aciona o linker-wrapper no link final.
+if(GPU_OFFLOAD)
+    target_link_options(spmv_parallel PRIVATE -fopenmp)
+endif()
 
 if(BUILD_TESTS)
     find_package(GTest REQUIRED)
